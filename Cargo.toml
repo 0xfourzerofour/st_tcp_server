@@ -1,0 +1,10 @@
+[package]
+name = "st_tcp_server"
+version = "0.1.0"
+edition = "2021"
+author = "0xfourzerofour"
+
+[dependencies]
+anyhow = "1.0.95"
+futures = "0.3.31"
+tokio = {version = "1.43.0", features = ["full"]}

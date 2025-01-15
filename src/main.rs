@@ -1,24 +1,24 @@
 use anyhow::Result;
-use server::Server;
-use tokio::net::TcpListener;
+use clap::Parser;
+use st_tcp_server::server::Server;
 
-mod client;
-mod events;
-mod server;
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(default_value = "3000")]
+    port: String,
+    #[arg(default_value = "100")]
+    poll_rate_ms: u64,
+}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    let addr = "localhost:3000";
-    let listner = TcpListener::bind(addr).await?;
-    let mut server = Server::new(listner);
+    let args = Args::parse();
+    let addr = format!("localhost:{}", args.port);
+    let mut server = Server::new(&addr, args.poll_rate_ms).await?;
 
-    match server.start().await {
-        Ok(()) => {
-            println!("Server started successfully on {}.", addr);
-        }
-        Err(e) => {
-            eprintln!("Error starting server: {:?}", e);
-        }
+    if let Err(e) = server.start().await {
+        eprintln!("Error starting server: {:?}", e);
     }
     Ok(())
 }

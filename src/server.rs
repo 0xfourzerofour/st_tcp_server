@@ -17,13 +17,15 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(listener: TcpListener) -> Self {
-        Self {
+    pub async fn new(addr: &str, poll_rate: u64) -> Result<Self> {
+        let listener = TcpListener::bind(&addr).await?;
+
+        Ok(Self {
             listener,
             clients: HashMap::new(),
             event_queue: VecDeque::new(),
-            poll_rate: Duration::from_millis(100),
-        }
+            poll_rate: Duration::from_millis(poll_rate),
+        })
     }
 
     pub async fn start(&mut self) -> Result<()> {
@@ -71,36 +73,40 @@ impl Server {
 
     async fn process_events(&mut self) -> Result<()> {
         while let Some(event) = self.event_queue.pop_front() {
-            self.handle_event(event).await?;
+            self.handle_event(&event).await?;
         }
         Ok(())
     }
 
-    async fn handle_event(&mut self, event: Event) -> Result<()> {
+    async fn handle_event(&mut self, event: &Event) -> Result<()> {
         match event {
-            Event::Login(client_id) => {
-                if let Some(client) = self.clients.get_mut(&client_id) {
-                    client
-                        .send_message(&format!("LOGIN:{}\n", client_id))
-                        .await?;
+            Event::Login(client_id) | Event::Disconnect(client_id) => {
+                if let Some(client) = self.clients.get_mut(client_id) {
+                    client.send_message(&event.to_string()).await?;
+                }
+                if let Event::Disconnect(_) = event {
+                    println!("client {} disconnected.", client_id);
+                    self.clients.remove(client_id);
                 }
             }
             Event::Message(from_id, content) => {
-                if let Some(sender) = self.clients.get_mut(&from_id) {
+                if let Some(sender) = self.clients.get_mut(from_id) {
                     sender.send_message("ACK:MESSAGE\n").await?;
                 }
 
-                let broadcast_msg = format!("MESSAGE:{} {}\n", from_id, content);
-                for (id, client) in &mut self.clients {
-                    if id != &from_id {
-                        if let Err(e) = client.send_message(&broadcast_msg).await {
-                            eprintln!("Failed to send message to {}: {}", id, e);
-                        }
+                println!("message {} {}", from_id, content);
+
+                let clients_to_broadcast: Vec<(&String, &mut Client)> = self
+                    .clients
+                    .iter_mut()
+                    .filter(|(id, _)| *id != from_id)
+                    .collect();
+
+                for (id, client) in clients_to_broadcast {
+                    if let Err(e) = client.send_message(&event.to_string()).await {
+                        eprintln!("Failed to send message to {}: {}", id, e);
                     }
                 }
-            }
-            Event::Disconnect(client_id) => {
-                self.clients.remove(&client_id);
             }
         }
         Ok(())

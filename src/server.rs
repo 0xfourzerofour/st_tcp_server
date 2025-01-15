@@ -45,8 +45,7 @@ impl Server {
                     self.clients.insert(client_id, client);
                 }
                 Poll::Pending => {
-                    self.check_clients().await?;
-                    self.process_events().await?;
+                    self.check_and_process_clients().await?;
                     // pause main thread to configurable length so that we do not
                     // overload the cpu with io operations
                     sleep(self.poll_rate).await;
@@ -58,23 +57,20 @@ impl Server {
         }
     }
 
-    async fn check_clients(&mut self) -> Result<()> {
-        let client_ids: Vec<String> = self.clients.keys().cloned().collect();
-        for client_id in client_ids {
-            if let Some(client) = self.clients.get_mut(&client_id) {
-                if let Some(event) = client.read_line().await? {
-                    self.event_queue.push_back(event);
-                }
+    async fn check_and_process_clients(&mut self) -> Result<()> {
+        let clients: Vec<(&String, &mut Client)> = self.clients.iter_mut().collect();
+        // check for new messages
+        for (_id, client) in clients {
+            if let Some(event) = client.read_line().await? {
+                self.event_queue.push_back(event);
             }
         }
 
-        Ok(())
-    }
-
-    async fn process_events(&mut self) -> Result<()> {
+        // process received messages
         while let Some(event) = self.event_queue.pop_front() {
             self.handle_event(&event).await?;
         }
+
         Ok(())
     }
 

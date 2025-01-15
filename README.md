@@ -11,7 +11,7 @@ A non blocking single threaded TCP server that multiple clients can connect to, 
 
 ## Obervations 
 
-Initially I started on a multi threaded version as that is what I am used to but thought it wouldn't be too hard as its a pretty small usecase. After looking into the tokio docs I was able to find alternatives for the `read_line` function that does not block (`poll_read`).
+Initially I started on a multi threaded version as that is what I am used to but thought it wouldn't be too hard as its a pretty small usecase. After looking into the tokio docs I was able to find alternatives for the `read_line` function that does not block (`poll_read`). Once that was figured out, all I had to do was create a main loop so that we can continually check for new connections or update existing ones.
 
 ## Architecture
 
